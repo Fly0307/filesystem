@@ -9,7 +9,7 @@ FILE* openFile(const char* filePath, const char* mode) {
     return fopen(filePath, mode);
 }
 
-int writeFile(const char* filePath, const void* data, size_t dataSize) {
+int writeFile(const char* filePath, const void* data, size_t dataSize, FileEntry** fileEntry) {
     FILE* file = openFile(filePath, "wb");
     if (!file) return -1;
     size_t written = fwrite(data, 1, dataSize, file);
@@ -99,4 +99,52 @@ int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, i
     return 0;
 }
 
+int findFile(const char* dirPath, const uint8_t* fileoid, FileEntry** foundFile){
+    //读取目录索引
+//    struct dirfile_entry *r_entries = NULL;
+//    int r_count = 0;
+//    if (readDirFile(DIR_FILE_PATH, &r_entries, &r_count) != 0) {
+//        printf("Failed to read directory file.\n");
+//        return -1;
+//    }
+//    //遍历查找文件
+//
+//    struct FileEntry * fileEntry = NULL;
+//    fileEntry = malloc(sizeof( FileEntry));
+//
+//    for (int i = 0; i < r_count; ++i) {
+//
+//    }
+    FILE* file = fopen(dirPath, "rb");
+    if (!file) {
+        perror("Failed to open directory file");
+        return -1;
+    }
 
+    FileEntry entry;
+    int found = 0;
+    while (fread(&entry, sizeof(FileEntry), 1, file)) {
+        if (strcmp(entry.fileoid, fileoid) == 0) {
+            // 找到了匹配的文件项
+            *foundFile = malloc(sizeof(FileEntry));
+            if (*foundFile == NULL) {
+                perror("Failed to allocate memory for found file");
+                fclose(file);
+                return -1;
+            }
+            memcpy(*foundFile, &entry, sizeof(FileEntry));
+            found = 1;
+            break;
+        }
+    }
+
+    fclose(file);
+
+    if (found) {
+        return 0; // 成功找到文件
+    } else {
+        *foundFile = NULL; // 确保指针为空，以避免悬挂指针
+        return 1; // 文件未找到
+    }
+
+}

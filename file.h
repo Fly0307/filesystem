@@ -8,13 +8,17 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/dtrace.h>
+#include "string.h"
 
-typedef struct {
-    char fileName[256]; // 文件名
-} FileEntry;
+#define DIR_FILE_PATH "./data/dir.db"
 
 #define TEE_OBJECT_ID_MAX_LEN 16
 #define TEE_FS_HTREE_HASH_SIZE 256/8
+
+typedef struct {
+    char fileoid[TEE_OBJECT_ID_MAX_LEN]; // 文件名
+    char filepath[64];  //文件路径
+} FileEntry;
 
 struct dirfile_entry {
     UUID uuid;//创建该文件的UUID
@@ -35,10 +39,10 @@ int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, i
 FILE* openFile(const char* filePath, const char* mode);
 
 // 写入指定文件
-int writeFile(const char* filePath, const void* data, size_t dataSize);
+int writeFile(const char* filePath, const void* data, size_t dataSize, FileEntry** fileEntry);
 
 // 查找指定文件
-int findFile(const char* dirPath, const char* fileName, FileEntry** foundFile);
+int findFile(const char* dirPath, const uint8_t* fileName, FileEntry** foundFile);
 
 // 删除指定文件
 int deleteFile(const char* filePath);

@@ -9,7 +9,7 @@
 
 // 假设UUID、encryptDecryptData、readDirFile、writeDirFile等函数已经定义
 
-#define DIR_FILE_PATH "./data/dir.db"
+//#define DIR_FILE_PATH "./data/dir.db"
 
 void demo() {
     // 假设文件内容和文件名
@@ -24,7 +24,8 @@ void demo() {
     encryptDecryptData(fileContent, contentSize, key);
 
     // 写入加密文件内容
-    if (writeFile(filePath, fileContent, contentSize) != 0) {
+    FileEntry * fileEntry_w = malloc(sizeof (FileEntry));
+    if (writeFile(filePath, fileContent, contentSize, &fileEntry_w) != 0) {
         printf("Failed to write encrypted file.\n");
         return;
     }
@@ -47,8 +48,10 @@ void demo() {
     }
 
     // 添加新条目到数组中
-    struct dirfile_entry *updatedEntries = (struct dirfile_entry *) realloc(entries,
-                                                                            (count + 1) * sizeof(struct dirfile_entry));
+//    struct dirfile_entry *updatedEntries = (struct dirfile_entry *) realloc(entries,
+//                                                                            (count + 1) * sizeof(struct dirfile_entry));
+    struct  dirfile_entry* updatedEntries = (struct dirfile_entry *) malloc((count+1)*sizeof (struct dirfile_entry));
+    memmove(updatedEntries, entries, count * sizeof (struct dirfile_entry));
     if (!updatedEntries) {
         printf("Failed to allocate memory for updated entries.\n");
         free(entries);
@@ -67,6 +70,12 @@ void demo() {
 
     // 以下是读取和解密文件内容的示例，删除文件和更新目录的操作类似
     // 注意：实际操作中，你需要根据实际情况填充代码，处理错误等
+    uint8_t file_oid[TEE_OBJECT_ID_MAX_LEN];
+    memset(file_oid, 0xaF, TEE_OBJECT_ID_MAX_LEN);
+
+    FileEntry * fileEntry = malloc(sizeof (FileEntry));
+    findFile(DIR_FILE_PATH, file_oid, &fileEntry);
+
     // *entries = malloc(sizeof(dirfile_entry) * 读取到的条目数);
     // *count = 读取到的条目数;
     // fread(*entries, sizeof(dirfile_entry), *count, file);
@@ -74,5 +83,6 @@ void demo() {
 
 int main() {
     demo();
+    printf("hello world\n");
     return 0;
 }
