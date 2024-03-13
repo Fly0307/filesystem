@@ -1,0 +1,3 @@
+/Users/zhaoxi/Documents/ipads/c_project/filesystem/cmake-build-debug/CMakeFiles/filesystem.dir
+/Users/zhaoxi/Documents/ipads/c_project/filesystem/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/zhaoxi/Documents/ipads/c_project/filesystem/cmake-build-debug/CMakeFiles/rebuild_cache.dir
