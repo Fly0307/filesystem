@@ -12,21 +12,27 @@
 
 #define DIR_FILE_PATH "./data/dir.db"
 #define FILE_PATH "./data/"
+#define FILE_PATH_LEN sizeof (FILE_PATH) + 4
 
 #define TEE_OBJECT_ID_MAX_LEN 16
+#define TEE_OBJECT_NAME         16
 #define TEE_FS_HTREE_HASH_SIZE 256/8
 #define BITMAP_SIZE (256)/8
 
 typedef struct {
-    char fileoid[TEE_OBJECT_ID_MAX_LEN]; // 文件名
-    char filepath[64];  //文件路径
+//    char fileoid[TEE_OBJECT_ID_MAX_LEN]; // 文件名
+    char* filepath;  //文件路径
+    uint32_t fileoid;
+    uint32_t filenum;
 } FileEntry;
 
 struct dirfile_entry {
 //    UUID uuid;//创建该文件的UUID
     uint8_t uuid[16];//for linux
-    uint8_t oid[TEE_OBJECT_ID_MAX_LEN];//安全文件的名字（使用secure storage操作时的名字）
-    uint32_t oidlen;//文件名字的长度
+    uint32_t oid;
+//    uint8_t oid[TEE_OBJECT_ID_MAX_LEN];//安全文件的名字（使用secure storage操作时的名字）
+    char filename[TEE_OBJECT_NAME];
+    uint32_t namelen;//文件名字的长度
     uint8_t hash[TEE_FS_HTREE_HASH_SIZE];//data/目录下安全文件的root node的hash值
     uint32_t file_number;//保存在/data/目录下的文件编号
 };
@@ -40,6 +46,7 @@ int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* co
 //写入目录文件
 int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, int count);
 
+int add_newEntry(const char* dirFilePath, const struct dirfile_entry *entries);
 // 打开指定文件
 FILE* openFile(const char* filePath, const char* mode);
 
@@ -50,7 +57,7 @@ int writeFile(const char* filePath, const void* data, size_t dataSize);
 int readFile(const char* filePath, const void* data, size_t *dataSize);
 
 // 查找指定文件
-int findFile(const char* dirPath, const uint8_t* fileName, FileEntry* foundFile);
+int findFile(const char* dirPath, const uint32_t fileoid, FileEntry* foundFile);
 
 // 删除指定文件
 int deleteFile(const char* filePath);

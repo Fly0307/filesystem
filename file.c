@@ -31,16 +31,20 @@ void int_to_string(int num, char fileoid[]) {
 }
 
 int createNewFile(const char* dirFilePath, FileEntry* fileEntry){
-    FILE* file = fopen(dirFilePath, "rb");
+    FILE* file = fopen(dirFilePath, "rb+");
     if (!file) {
         // 尝试创建一个空的目录文件，因为假设文件不存在
-        file = fopen(dirFilePath, "wb");
+        file = fopen(dirFilePath, "wb+");
         if (!file) {
             perror("Failed to create a new directory file");
             return -1; // 创建文件失败
         }
+        uint8_t bitmap_ze[BITMAP_SIZE] = {0};
+
+        fwrite(bitmap_ze, sizeof(uint8_t), BITMAP_SIZE, file);
         fclose(file); // 关闭文件，因为我们只是想创建它
-        return 0; // 成功创建空文件
+//        return 0; // 成功创建空文件
+        fopen(dirFilePath, "rb+");
     }
 
     int file_num = 0;
@@ -66,12 +70,17 @@ int createNewFile(const char* dirFilePath, FileEntry* fileEntry){
     fwrite(bitmap, sizeof(uint8_t), BITMAP_SIZE, file);
     fclose(file);
 
-    memset(fileEntry,0,sizeof( fileEntry));
+//    memset(fileEntry,0,sizeof( fileEntry));
 //    memcpy(fileEntry->fileoid,&file_num,sizeof(file_num));
-    int_to_string(file_num,fileEntry->fileoid);
-    char filePath[256] = FILE_PATH;
-    strcat(filePath, fileEntry->fileoid);
+    fileEntry->filenum = file_num;
+//    int_to_string(file_num,fileEntry->fileoid);
+    fileEntry->fileoid = file_num;
+    char* filePath = malloc(FILE_PATH_LEN);
+    memset(filePath, 0 ,FILE_PATH_LEN);
+    sprintf(filePath, "%s%u", FILE_PATH, file_num);
     memcpy(fileEntry->filepath,filePath, strlen(filePath));
+    file = fopen(fileEntry->filepath, "wb+");
+    fclose(file);
 }
 
 FILE* openFile(const char* filePath, const char* mode) {
@@ -79,7 +88,7 @@ FILE* openFile(const char* filePath, const char* mode) {
 }
 
 int writeFile(const char* filePath, const void* data, size_t dataSize) {
-    FILE* file = openFile(filePath, "wb");
+    FILE* file = openFile(filePath, "wb+");
     if (!file) return -1;
     char key = 'A'; // 加密密钥
     encryptDecryptData(data, dataSize, key);
@@ -98,7 +107,6 @@ int readFile(const char* filePath, const void* data, size_t *dataSize){
     *dataSize = readbytes;
     encryptDecryptData(data, *dataSize, key);
     fclose(file);
-
 
     return (readbytes == *dataSize) ? 0 : -1;
 }
@@ -143,7 +151,7 @@ int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* co
     fread(bitmap,sizeof(uint8_t),BITMAP_SIZE,file);
 
     // 计算条目数
-    *count = fileSize / sizeof(struct dirfile_entry);
+    *count = (fileSize - BITMAP_SIZE) / sizeof(struct dirfile_entry);
     if (*count <= 0) {
         fclose(file);
         return 0; // 没有条目
@@ -173,11 +181,18 @@ int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* co
 
 
 int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, int count) {
-    FILE* file = fopen(dirFilePath, "wb");
+    FILE* file = fopen(dirFilePath, "rb+");
     if (!file) {
         perror("Failed to open directory file for writing");
         return -1;
     }
+    uint8_t bitmap[BITMAP_SIZE];
+    if (BITMAP_SIZE != fread(bitmap,sizeof (uint8_t),BITMAP_SIZE,file)){
+        perror("Read bitmap error");
+        fclose(file);
+        return -1;
+    }
+//    fseek(file, BITMAP_SIZE, SEEK_SET);
     // 写入条目
     size_t writtenCount = fwrite(entries, sizeof(struct dirfile_entry), count, file);
     if (writtenCount != count) {
@@ -188,10 +203,45 @@ int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, i
 
 
     fclose(file);
+    file = fopen(dirFilePath, "rb");
+//    uint8_t bitmap[BITMAP_SIZE];
+    fread(bitmap,sizeof (uint8_t),BITMAP_SIZE,file);
+    fclose(file);
     return 0;
 }
 
-int findFile(const char* dirPath, const uint8_t* fileoid, FileEntry* foundFile){
+int add_newEntry(const char* dirFilePath,const struct dirfile_entry *newEntry){
+    struct dirfile_entry *entries = NULL;
+    int count = 0;
+    if (readDirFile(DIR_FILE_PATH, &entries, &count) != 0) {
+        printf("Failed to read directory file.\n");
+        return -1;
+    }
+
+    // 添加新条目到数组中
+//    struct dirfile_entry *updatedEntries = (struct dirfile_entry *) realloc(entries,
+//                                                                            (count + 1) * sizeof(struct dirfile_entry));
+    struct  dirfile_entry* updatedEntries = (struct dirfile_entry *) malloc((count+1)*sizeof (struct dirfile_entry));
+    memmove(updatedEntries, entries, count * sizeof (struct dirfile_entry));
+    if (!updatedEntries) {
+        printf("Failed to allocate memory for updated entries.\n");
+        free(entries);
+        return -1;
+    }
+    updatedEntries[count] = *newEntry;
+
+    // 写回目录文件
+    if (writeDirFile(DIR_FILE_PATH, updatedEntries, count + 1) != 0) {
+        printf("Failed to update directory file.\n");
+        free(updatedEntries);
+        return -1;
+    }
+
+    free(updatedEntries);
+    return 0;
+}
+
+int findFile(const char* dirPath, const uint32_t fileoid, FileEntry* foundFile){
     //读取目录索引
 //    struct dirfile_entry *r_entries = NULL;
 //    int r_count = 0;
@@ -213,16 +263,20 @@ int findFile(const char* dirPath, const uint8_t* fileoid, FileEntry* foundFile){
         return -1;
     }
 
+    uint8_t bitmap[BITMAP_SIZE];
+    fread(bitmap,sizeof (uint8_t),BITMAP_SIZE,file);
+//    fseek(file, BITMAP_SIZE, SEEK_SET);
     struct dirfile_entry entry;
     int found = 0;
     while (fread(&entry, sizeof(struct dirfile_entry), 1, file)) {
-        if (strcmp(entry.oid, fileoid) == 0) {
+        if (entry.oid == fileoid) {
             // 找到了匹配的文件项
             FileEntry fileEntry;
-            char filePath[256] = "./data/";
-            strcat(filePath, entry.oid);
-            memcpy(foundFile->filepath,filePath, strlen(filePath));
-            memcpy(foundFile->fileoid, entry.oid,sizeof(entry.oid));
+            char* filePath = malloc(FILE_PATH_LEN);
+            memset(filePath, 0 , sizeof (FILE_PATH) + 4);
+            sprintf(filePath, "%s%u", FILE_PATH, entry.oid);
+            memcpy(foundFile->filepath, filePath, strlen(filePath));
+            foundFile->fileoid = entry.oid;
             if (foundFile == NULL) {
                 perror("Failed to allocate memory for found file");
                 fclose(file);
