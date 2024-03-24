@@ -20,6 +20,9 @@ void demo() {
     char *filename="example";
     char filePath[256] = "./data/";
     memcpy(fileContent, str, strlen(str));
+    UUID uuid1 = {0x12345678, 0xABCD, 0xEF01, {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0}};
+    UUID uuid2 = {0x12345678, 0xABCD, 0xEF01, {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF1}};
+
     // 加密文件内容
     size_t contentSize = strlen(fileContent) + 1; // 包括null终结符
 //    encryptDecryptData(fileContent, contentSize, key);
@@ -50,8 +53,10 @@ void demo() {
     // 填充newEntry的字段，例如uuid、oid等
     newEntry.file_number = fileEntry_w.filenum;
     newEntry.oid = fileEntry_w.fileoid;
+    memcpy(newEntry.filename,filename, strlen(filename));
+    newEntry.namelen = strlen(newEntry.filename);
     memset(newEntry.hash, 0xFa, TEE_FS_HTREE_HASH_SIZE);
-    memset(newEntry.uuid, 0xcf, 16);
+    memcpy(&newEntry.uuid, &uuid1, sizeof (UUID));
 //    memset(newEntry.oid, filename, TEE_OBJECT_ID_MAX_LEN);
 //    memcpy(newEntry.oid,filename, strlen(filename));
 
@@ -78,6 +83,25 @@ void demo() {
     // *entries = malloc(sizeof(dirfile_entry) * 读取到的条目数);
     // *count = 读取到的条目数;
     // fread(*entries, sizeof(dirfile_entry), *count, file);
+    deleteDirEntry(DIR_FILE_PATH, filename);
+    if (findFile(DIR_FILE_PATH, file_oid, &fileEntry))
+    {
+        printf("don't find file, delete success\n");
+    } else {
+        printf("delete file %s failed\n",filename);
+    }
+
+    memset(fileEntry_w.filepath, 0, FILE_PATH_LEN);
+    createNewFile(DIR_FILE_PATH,&fileEntry_w);
+
+    // 写入加密文件内容
+    if (writeFile(fileEntry_w.filepath, fileContent, contentSize) != 0) {
+        printf("Failed to write encrypted file.\n");
+        free(fileContent);
+        return;
+    }
+    add_newEntry(DIR_FILE_PATH, &newEntry);
+
     free(fileContent);
     free(fileEntry_w.filepath);
 }

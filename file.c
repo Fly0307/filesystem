@@ -3,7 +3,31 @@
 //
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include "file.h"
+
+// 判断两个UUID是否相等
+bool compare_uuid(UUID uuid1, UUID uuid2) {
+    if (uuid1.data1 != uuid2.data1) {
+        return false;
+    }
+
+    if (uuid1.data2 != uuid2.data2) {
+        return false;
+    }
+
+    if (uuid1.data3 != uuid2.data3) {
+        return false;
+    }
+
+    for (int i = 0; i < 8; i++) {
+        if (uuid1.data4[i] != uuid2.data4[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 uint8_t find_min_available_number(uint8_t bitmap[], int size) {
     //返回当前最小可用编号
@@ -11,12 +35,18 @@ uint8_t find_min_available_number(uint8_t bitmap[], int size) {
         for (int j = 0; j < 8; j++) {
             if ((bitmap[i] & (1 << j)) == 0) {
                 bitmap[i] |= (1 << j);
-                return i * 8 + j;
+                return (i * 8 + j)+1;
             }
         }
     }
 
     return -1; // No available number found
+}
+
+void clear_bit(uint8_t bitmap[],int position){
+    int byte_index = position / 8;
+    int bit_offset = position % 8;
+    bitmap[byte_index] &= ~(1 << bit_offset);
 }
 
 void clear_bitmap_bit(uint8_t bitmap[], int bit_number) {
@@ -83,6 +113,69 @@ int createNewFile(const char* dirFilePath, FileEntry* fileEntry){
     fclose(file);
 }
 
+int deleteDirEntry(const char* dirFilePath, char* filename){
+    struct dirfile_entry *entries = NULL;
+    int count = 0;
+    uint8_t bitmap[BITMAP_SIZE];
+    if (readDirFile(DIR_FILE_PATH, &entries, &count, bitmap) != 0) {
+        printf("Failed to read directory file.\n");
+        return -1;
+    }
+
+    //遍历条目，查找到对应的fileentry
+    int find_id = -1;
+    for (int i = 0; i < count; ++i) {
+        if (strcmp(entries[i].filename, filename) == 0){
+            find_id = i;
+            break;
+        }
+    }
+    if (find_id >= 0){
+        clear_bit(bitmap, find_id);
+    }
+    char* filePath = malloc(FILE_PATH_LEN);
+    memset(filePath, 0 , sizeof (FILE_PATH) + 4);
+    sprintf(filePath, "%s%u", FILE_PATH, entries[find_id].oid);
+    //删除指定文件
+    if(remove((filePath)) == 0){
+        printf(" file %s is deteted\n", filePath);
+    } else{
+        printf("delete file %s failed!\n", filePath);
+    }
+
+    //拷贝后面的数据，删除当前entry
+//    for (int i = find_id; i < (count -1); ++i) {
+//        memcpy(entries+i , entries+(i+1), sizeof(struct dirfile_entry));
+//    }
+    struct  dirfile_entry* updatedEntries = (struct dirfile_entry *) malloc((count-1)*sizeof (struct dirfile_entry));
+
+    if (find_id > 0){
+        //    拷贝foundid前的数据
+        memmove(updatedEntries, entries, find_id * sizeof (struct dirfile_entry));
+        //    拷贝foundid后的数据
+        memmove(updatedEntries + find_id, entries + (find_id + 1), ((count - find_id -1)) *sizeof(struct dirfile_entry));
+    } else if (find_id == 0 && count >1){
+        memmove(updatedEntries, entries + 1, (count-1) *sizeof(struct dirfile_entry));
+    }
+
+    if (!updatedEntries) {
+        printf("Failed to allocate memory for updated entries.\n");
+        free(entries);
+        return -1;
+    }
+    // 写回目录文件
+    if (writeDirFile(DIR_FILE_PATH, updatedEntries, count - 1, bitmap) != 0) {
+        printf("Failed to update directory file.\n");
+        free(entries);
+        free(updatedEntries);
+        return -1;
+    }
+
+    free(entries);
+    free(updatedEntries);
+
+}
+
 FILE* openFile(const char* filePath, const char* mode) {
     return fopen(filePath, mode);
 }
@@ -112,16 +205,16 @@ int readFile(const char* filePath, const void* data, size_t *dataSize){
 }
 
 void encryptDecryptData(void* data, size_t dataSize, char key) {
-    char* byteData = (char*)data;
-    for (size_t i = 0; i < dataSize; ++i) {
-        byteData[i] ^= key;
-//        char c = byteData[i] ;
-//        byteData[i] = c + 1;
-    }
+//    char* byteData = (char*)data;
+//    for (size_t i = 0; i < dataSize; ++i) {
+//        byteData[i] ^= key;
+////        char c = byteData[i] ;
+////        byteData[i] = c + 1;
+//    }
 }
 
 
-int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* count) {
+int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* count, uint8_t* bitmap) {
     FILE* file = fopen(dirFilePath, "rb");
     if (!file) {
         // 尝试创建一个空的目录文件，因为假设文件不存在
@@ -147,7 +240,7 @@ int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* co
 
     //前32byte作为bitmap存储文件编号
     fseek(file, 0, SEEK_SET);
-    uint8_t bitmap[BITMAP_SIZE];
+//    uint8_t bitmap[BITMAP_SIZE];
     fread(bitmap,sizeof(uint8_t),BITMAP_SIZE,file);
 
     // 计算条目数
@@ -180,31 +273,49 @@ int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* co
 
 
 
-int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, int count) {
-    FILE* file = fopen(dirFilePath, "rb+");
+int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, int count, uint8_t* bitmap) {
+    FILE* file = fopen(dirFilePath, "wb+");
     if (!file) {
         perror("Failed to open directory file for writing");
         return -1;
     }
-    uint8_t bitmap[BITMAP_SIZE];
-    if (BITMAP_SIZE != fread(bitmap,sizeof (uint8_t),BITMAP_SIZE,file)){
-        perror("Read bitmap error");
-        fclose(file);
+//    uint8_t old_bitmap[BITMAP_SIZE];
+    if (bitmap != NULL){
+        if (BITMAP_SIZE != fwrite(bitmap,sizeof (uint8_t),BITMAP_SIZE,file)){
+            perror("write bitmap error");
+            fclose(file);
+            return -1;
+        }
+    } else {
+        fseek(file,BITMAP_SIZE,SEEK_SET);
+        perror("bitmap is NULL");
         return -1;
     }
 //    fseek(file, BITMAP_SIZE, SEEK_SET);
     // 写入条目
-    size_t writtenCount = fwrite(entries, sizeof(struct dirfile_entry), count, file);
-    if (writtenCount != count) {
-        perror("Failed to write directory entries");
-        fclose(file);
-        return -1;
+    if (count == 0){
+//        entries = malloc(sizeof (struct dirfile_entry));
+//        memset(entries, 0 ,sizeof(struct dirfile_entry));
+//        size_t writtenCount = fwrite(entries, sizeof(struct dirfile_entry), 1, file);
+//        if (writtenCount != 1) {
+//            perror("Failed to write directory entries");
+//            fclose(file);
+//            free(entries);
+//            return -1;
+//        }
+//        free(entries);
+    } else{
+        size_t writtenCount = fwrite(entries, sizeof(struct dirfile_entry), count, file);
+        if (writtenCount != count) {
+            perror("Failed to write directory entries");
+            fclose(file);
+            return -1;
+        }
     }
 
-
     fclose(file);
+    // for debug
     file = fopen(dirFilePath, "rb");
-//    uint8_t bitmap[BITMAP_SIZE];
     fread(bitmap,sizeof (uint8_t),BITMAP_SIZE,file);
     fclose(file);
     return 0;
@@ -213,34 +324,57 @@ int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, i
 int add_newEntry(const char* dirFilePath,const struct dirfile_entry *newEntry){
     struct dirfile_entry *entries = NULL;
     int count = 0;
-    if (readDirFile(DIR_FILE_PATH, &entries, &count) != 0) {
+    uint8_t bitmap[BITMAP_SIZE];
+    if (readDirFile(DIR_FILE_PATH, &entries, &count, bitmap) != 0) {
         printf("Failed to read directory file.\n");
         return -1;
     }
 
-    // 添加新条目到数组中
+    // 添加或者插入新条目到数组中,考虑count为1时是否为空
+    // 当前count>bitmap，直接插入到对应位置
 //    struct dirfile_entry *updatedEntries = (struct dirfile_entry *) realloc(entries,
 //                                                                            (count + 1) * sizeof(struct dirfile_entry));
-    struct  dirfile_entry* updatedEntries = (struct dirfile_entry *) malloc((count+1)*sizeof (struct dirfile_entry));
-    memmove(updatedEntries, entries, count * sizeof (struct dirfile_entry));
-    if (!updatedEntries) {
-        printf("Failed to allocate memory for updated entries.\n");
-        free(entries);
-        return -1;
-    }
-    updatedEntries[count] = *newEntry;
-
-    // 写回目录文件
-    if (writeDirFile(DIR_FILE_PATH, updatedEntries, count + 1) != 0) {
-        printf("Failed to update directory file.\n");
+    if (count > newEntry->oid){
+        //插入到现有entries对应位置
+        memcpy(entries + newEntry->oid, newEntry, sizeof (struct dirfile_entry));
+        // 写回目录文件
+        if (writeDirFile(DIR_FILE_PATH, entries, count, bitmap) != 0) {
+            printf("Failed to update directory file.\n");
+            free(entries);
+            return -1;
+        }
+    } else{
+        //需要追加一个新entry
+        struct  dirfile_entry* updatedEntries = (struct dirfile_entry *) malloc((count+1)*sizeof (struct dirfile_entry));
+        memmove(updatedEntries, entries, count * sizeof (struct dirfile_entry));
+        if (!updatedEntries) {
+            printf("Failed to allocate memory for updated entries.\n");
+            free(entries);
+            free(updatedEntries);
+            return -1;
+        }
+        updatedEntries[count] = *newEntry;
+        // 写回目录文件
+        if (writeDirFile(DIR_FILE_PATH, updatedEntries, count + 1, bitmap) != 0) {
+            printf("Failed to update directory file.\n");
+            free(entries);
+            free(updatedEntries);
+            return -1;
+        }
         free(updatedEntries);
-        return -1;
     }
 
-    free(updatedEntries);
+    free(entries);
     return 0;
 }
 
+/**
+ *  返回1则未找到文件
+ * @param dirPath
+ * @param fileoid
+ * @param foundFile
+ * @return 1 0
+ */
 int findFile(const char* dirPath, const uint32_t fileoid, FileEntry* foundFile){
     //读取目录索引
 //    struct dirfile_entry *r_entries = NULL;
@@ -269,7 +403,7 @@ int findFile(const char* dirPath, const uint32_t fileoid, FileEntry* foundFile){
     struct dirfile_entry entry;
     int found = 0;
     while (fread(&entry, sizeof(struct dirfile_entry), 1, file)) {
-        if (entry.oid == fileoid) {
+        if (entry.oid == fileoid && entry.namelen > 0) {
             // 找到了匹配的文件项
             FileEntry fileEntry;
             char* filePath = malloc(FILE_PATH_LEN);
@@ -297,5 +431,9 @@ int findFile(const char* dirPath, const uint32_t fileoid, FileEntry* foundFile){
         foundFile = NULL; // 确保指针为空，以避免悬挂指针
         return 1; // 文件未找到
     }
+
+}
+
+int deleteFile(const char* filePath){
 
 }

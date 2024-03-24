@@ -20,6 +20,13 @@
 #define BITMAP_SIZE (256)/8
 
 typedef struct {
+    uint32_t data1;
+    uint16_t data2;
+    uint16_t data3;
+    uint8_t data4[8];
+}UUID;
+
+typedef struct {
 //    char fileoid[TEE_OBJECT_ID_MAX_LEN]; // 文件名
     char* filepath;  //文件路径
     uint32_t fileoid;
@@ -27,8 +34,8 @@ typedef struct {
 } FileEntry;
 
 struct dirfile_entry {
-//    UUID uuid;//创建该文件的UUID
-    uint8_t uuid[16];//for linux
+    UUID uuid;//创建该文件的UUID
+//    uint8_t uuid[16];//for linux
     uint32_t oid;
 //    uint8_t oid[TEE_OBJECT_ID_MAX_LEN];//安全文件的名字（使用secure storage操作时的名字）
     char filename[TEE_OBJECT_NAME];
@@ -41,12 +48,15 @@ struct dirfile_entry {
 //int readDir(const char* dirPath, FileEntry** fileList, int* fileCount);
 int createNewFile(const char* dirFilePath, FileEntry* fileEntry);
 
-int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* count);
+int readDirFile(const char* dirFilePath, struct dirfile_entry** entries, int* count, uint8_t* bitmap);
 
 //写入目录文件
-int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, int count);
+int writeDirFile(const char* dirFilePath, const struct dirfile_entry* entries, int count, uint8_t* bitmap);
 
 int add_newEntry(const char* dirFilePath, const struct dirfile_entry *entries);
+
+//根据filename查找到目录中entry，删除
+int deleteDirEntry(const char* dirFilePath, char* filename);
 // 打开指定文件
 FILE* openFile(const char* filePath, const char* mode);
 
