@@ -1,4 +1,5 @@
 cmake-build-debug
 .cmake/
 .idea/
-CMakeFiles
+CMakeFiles/
+*.txt
