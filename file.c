@@ -102,12 +102,12 @@ int createNewFile(const char* dirFilePath, FileEntry* fileEntry){
 
 //    memset(fileEntry,0,sizeof( fileEntry));
 //    memcpy(fileEntry->fileoid,&file_num,sizeof(file_num));
-    fileEntry->filenum = file_num;
 //    int_to_string(file_num,fileEntry->fileoid);
     fileEntry->fileoid = file_num;
     char* filePath = malloc(FILE_PATH_LEN);
     memset(filePath, 0 ,FILE_PATH_LEN);
-    sprintf(filePath, "%s%u", FILE_PATH, file_num);
+//    sprintf(filePath, "%s%u", FILE_PATH, file_num);
+    sprintf(filePath, "%s%s", FILE_PATH,fileEntry->filename);
     memcpy(fileEntry->filepath,filePath, strlen(filePath));
     file = fopen(fileEntry->filepath, "wb+");
     fclose(file);
@@ -134,8 +134,8 @@ int deleteDirEntry(const char* dirFilePath, char* filename){
         clear_bit(bitmap, find_id);
     }
     char* filePath = malloc(FILE_PATH_LEN);
-    memset(filePath, 0 , sizeof (FILE_PATH) + 4);
-    sprintf(filePath, "%s%u", FILE_PATH, entries[find_id].oid);
+    memset(filePath, 0 , FILE_PATH_LEN);
+    sprintf(filePath, "%s%s", FILE_PATH, entries[find_id].filename);
     //删除指定文件
     if(remove((filePath)) == 0){
         printf(" file %s is deteted\n", filePath);
@@ -407,8 +407,8 @@ int findFile(const char* dirPath, const uint32_t fileoid, FileEntry* foundFile){
             // 找到了匹配的文件项
             FileEntry fileEntry;
             char* filePath = malloc(FILE_PATH_LEN);
-            memset(filePath, 0 , sizeof (FILE_PATH) + 4);
-            sprintf(filePath, "%s%u", FILE_PATH, entry.oid);
+            memset(filePath, 0 , FILE_PATH_LEN);
+            sprintf(filePath, "%s%s", FILE_PATH, entry.filename);
             memcpy(foundFile->filepath, filePath, strlen(filePath));
             foundFile->fileoid = entry.oid;
             if (foundFile == NULL) {

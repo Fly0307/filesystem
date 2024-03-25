@@ -29,19 +29,19 @@ typedef struct {
 typedef struct {
 //    char fileoid[TEE_OBJECT_ID_MAX_LEN]; // 文件名
     char* filepath;  //文件路径
+    char* filename; //文件名
+    size_t filename_sz;//文件名长度
     uint32_t fileoid;
-    uint32_t filenum;
 } FileEntry;
 
 struct dirfile_entry {
     UUID uuid;//创建该文件的UUID
 //    uint8_t uuid[16];//for linux
-    uint32_t oid;
+    uint32_t oid;//保存在目录下的文件entry编号
 //    uint8_t oid[TEE_OBJECT_ID_MAX_LEN];//安全文件的名字（使用secure storage操作时的名字）
     char filename[TEE_OBJECT_NAME];
     uint32_t namelen;//文件名字的长度
     uint8_t hash[TEE_FS_HTREE_HASH_SIZE];//data/目录下安全文件的root node的hash值
-    uint32_t file_number;//保存在/data/目录下的文件编号
 };
 
 // 读取目录文件

@@ -17,7 +17,7 @@ void demo() {
     char *fileContent = malloc(strlen(str) + 1);
 //    char fileName[] = "example_file";
     char key = 'A'; // 加密密钥
-    char *filename="example";
+    char *filename="example_2";
     char filePath[256] = "./data/";
     memcpy(fileContent, str, strlen(str));
     UUID uuid1 = {0x12345678, 0xABCD, 0xEF01, {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0}};
@@ -37,6 +37,9 @@ void demo() {
     FileEntry fileEntry_w;
     fileEntry_w.filepath = malloc(FILE_PATH_LEN);
     memset(fileEntry_w.filepath, 0, FILE_PATH_LEN);
+    fileEntry_w.filename_sz = strlen(filename);
+    fileEntry_w.filename = malloc(fileEntry_w.filename_sz);
+    memcpy(fileEntry_w.filename, filename, strlen(filename));
     createNewFile(DIR_FILE_PATH,&fileEntry_w);
 
     // 写入加密文件内容
@@ -51,7 +54,6 @@ void demo() {
     struct dirfile_entry newEntry;
     memset(&newEntry, 0, sizeof(struct dirfile_entry));
     // 填充newEntry的字段，例如uuid、oid等
-    newEntry.file_number = fileEntry_w.filenum;
     newEntry.oid = fileEntry_w.fileoid;
     memcpy(newEntry.filename,filename, strlen(filename));
     newEntry.namelen = strlen(newEntry.filename);
@@ -104,6 +106,7 @@ void demo() {
 
     free(fileContent);
     free(fileEntry_w.filepath);
+    free(fileEntry_w.filename);
 }
 
 int main() {
